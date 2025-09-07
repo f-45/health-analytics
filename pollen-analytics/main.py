@@ -181,7 +181,7 @@ def generate_pollen_tweet(self, symptom_counts):
 
         return tweet_text
 
-    def post_tweet_with_image(self, text, image_buffer):
+        def post_tweet_with_image(self, text, image_buffer):
         """画像付きツイート投稿"""
         try:
             auth = tweepy.OAuth1UserHandler(
