@@ -41,6 +41,13 @@ class PollenAnalyzer:
             "風邪", "発熱", "のど", "喉", "体調悪い", "寒気", "関節痛", "咳"
         ]
 
+    def get_yesterday_timerange(self):
+        """昨日24時間の時間範囲を取得"""
+        now = datetime.utcnow()
+        yesterday_end = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday_start = yesterday_end - timedelta(days=1)
+        return yesterday_start, yesterday_end
+
     def is_pollen_related_symptom(self, tweet_text):
         text_lower = tweet_text.lower()
         has_pollen_context = any(indicator in text_lower for indicator in self.pollen_indicators)
@@ -49,22 +56,27 @@ class PollenAnalyzer:
 
     def build_symptom_query(self, symptom_name):
         keywords = " OR ".join(self.pollen_symptoms[symptom_name])
-        # 花粉症の文脈を含むクエリに改善
         return f"({keywords}) (花粉 OR アレルギー OR 花粉症 OR ブタクサ) -is:retweet lang:ja"
 
     def is_valid_tweet(self, text, symptom_name):
         if text.startswith('RT') or text.startswith('@'):
             return False
-        # ノイズ除去
+        
         noise_words = ["治った", "良くなった", "演技", "フリ", "嘘", "冗談", "昨日", "去年"]
         text_lower = text.lower()
         if any(noise in text_lower for noise in noise_words):
             return False
+        
         return self.is_pollen_related_symptom(text)
 
-    def collect_pollen_data(self):
-        print("花粉症症状データ収集開始...")
+    def collect_yesterday_pollen_data(self):
+        """昨日24時間の花粉症データ収集"""
+        print("昨日の花粉症症状データ収集開始...")
+        
+        start_time, end_time = self.get_yesterday_timerange()
         symptom_counts = {}
+        
+        print(f"対象期間: {start_time.strftime('%Y-%m-%d %H:%M')} - {end_time.strftime('%Y-%m-%d %H:%M')} (UTC)")
         
         for symptom_name in self.pollen_symptoms.keys():
             symptom_counts[symptom_name] = 0
@@ -73,7 +85,9 @@ class PollenAnalyzer:
             try:
                 tweets = self.client.search_recent_tweets(
                     query=query,
-                    max_results=50,  # 件数を増加
+                    start_time=start_time.isoformat(),
+                    end_time=end_time.isoformat(),
+                    max_results=20,
                     tweet_fields=['created_at', 'text']
                 )
                 
@@ -84,7 +98,7 @@ class PollenAnalyzer:
                 else:
                     print(f"{symptom_name}: 0件")
                 
-                time.sleep(3)  # API制限対策
+                time.sleep(2)
                 
             except Exception as e:
                 print(f"{symptom_name}: エラー - {str(e)}")
@@ -93,12 +107,10 @@ class PollenAnalyzer:
         return symptom_counts
 
     def create_pollen_chart(self, symptom_counts):
-        # 日本語フォント設定の改善
         try:
             import japanize_matplotlib
             japanize_matplotlib.japanize()
         except ImportError:
-            # フォールバック設定
             plt.rcParams['font.family'] = ['DejaVu Sans', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'IPAexGothic']
         
         sorted_symptoms = sorted(symptom_counts.items(), key=lambda x: x[1], reverse=True)
@@ -108,17 +120,19 @@ class PollenAnalyzer:
         fig, ax = plt.subplots(figsize=(10, 6))
         bars = ax.bar(symptoms, counts, color=['#FF9999', '#66B2FF', '#99FF99', '#FFCC99'])
         
-        ax.set_title('花粉症症状トレンドランキング', fontsize=16, pad=20, fontweight='bold')
+        yesterday = datetime.now() - timedelta(days=1)
+        title = f"昨日の花粉症症状トレンド ({yesterday.strftime('%Y/%m/%d')})"
+        ax.set_title(title, fontsize=16, pad=20, fontweight='bold')
         ax.set_ylabel('報告件数', fontsize=12)
         ax.set_xlabel('症状', fontsize=12)
         
-        # グリッド追加で見やすく
         ax.grid(True, alpha=0.3, axis='y')
         
         for bar, count in zip(bars, counts):
             height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-                   f'{count}件', ha='center', va='bottom', fontsize=11, fontweight='bold')
+            if height > 0:
+                ax.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                       f'{count}件', ha='center', va='bottom', fontsize=11, fontweight='bold')
         
         plt.xticks(rotation=0)
         plt.tight_layout()
@@ -132,22 +146,26 @@ class PollenAnalyzer:
 
     def generate_pollen_tweet(self, symptom_counts):
         sorted_symptoms = sorted(symptom_counts.items(), key=lambda x: x[1], reverse=True)
-        today = datetime.now().strftime('%m/%d')
+        yesterday = datetime.now() - timedelta(days=1)
+        date_str = yesterday.strftime('%Y/%m/%d')
         
-        # 絵文字を大幅削減
         ranking_text = ""
         for i, (symptom, count) in enumerate(sorted_symptoms, 1):
             ranking_text += f"{i}位: {symptom} ({count}件)\n"
         
-        top_symptom = sorted_symptoms[0][0]
+        # 最も多い症状の特定
+        if sorted_symptoms[0][1] > 0:
+            top_symptom = sorted_symptoms[0][0]
+            comment = f"{top_symptom}の報告が多くなっています。"
+        else:
+            comment = "昨日は花粉症の症状報告が少なめでした。"
         
-        # シンプルで自然な文章に変更
-        tweet_text = f"""花粉症症状トレンド ({today})
+        tweet_text = f"""花粉症症状トレンド ({date_str})
 
-本日のランキング:
+昨日のランキング:
 {ranking_text.rstrip()}
 
-{top_symptom}の報告が多くなっています。
+{comment}
 外出時はマスクや眼鏡での対策をおすすめします。
 
 #花粉症 #アレルギー #健康管理 #花粉対策"""
@@ -178,11 +196,11 @@ class PollenAnalyzer:
             return False
 
     def run_analysis(self):
-        print("Po Analytics 花粉症分析開始")
+        print("Po Analytics 昨日の花粉症分析開始")
         print(f"実行時刻: {datetime.now()}")
         
         try:
-            symptom_counts = self.collect_pollen_data()
+            symptom_counts = self.collect_yesterday_pollen_data()
             
             print("チャート作成中...")
             chart_image = self.create_pollen_chart(symptom_counts)
@@ -194,7 +212,7 @@ class PollenAnalyzer:
             success = self.post_tweet_with_image(tweet_text, chart_image)
             
             if success:
-                print("花粉症分析・投稿完了")
+                print("昨日の花粉症分析・投稿完了")
             else:
                 print("投稿に失敗しました")
                 
