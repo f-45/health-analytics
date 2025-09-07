@@ -2,9 +2,8 @@ name: Health Analytics - Cold Trend Analysis
 
 on:
   schedule:
-    # 3日に1回、日本時間朝7時（UTC 22時）に実行
     - cron: '0 22 */3 * *'
-  workflow_dispatch:  # 手動実行も可能
+  workflow_dispatch:
 
 jobs:
   analyze-and-tweet:
