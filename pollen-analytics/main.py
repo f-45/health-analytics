@@ -178,9 +178,9 @@ def generate_pollen_tweet(self, symptom_counts):
 {warning}
 
 #花粉症 #アレルギー #健康管理 #花粉対策"""
-        
+
         return tweet_text
-    
+
     def post_tweet_with_image(self, text, image_buffer):
         """画像付きツイート投稿"""
         try:
@@ -189,44 +189,44 @@ def generate_pollen_tweet(self, symptom_counts):
                 self.access_token, self.access_token_secret
             )
             api_v1 = tweepy.API(auth)
-            
+
             image_buffer.seek(0)
             media = api_v1.media_upload(filename="pollen_chart.png", file=image_buffer)
-            
+
             response = self.client.create_tweet(
                 text=text,
                 media_ids=[media.media_id]
             )
-            
+
             print(f"ツイート投稿成功: {response.data['id']}")
             return True
-            
+
         except Exception as e:
             print(f"ツイート投稿エラー: {str(e)}")
             return False
-    
+
     def run_analysis(self):
         """メイン分析処理"""
         print("Po Analytics 花粉症分析開始")
         print(f"実行時刻: {datetime.now()}")
-        
+
         try:
             symptom_counts = self.collect_pollen_data()
-            
+
             print("チャート作成中...")
             chart_image = self.create_pollen_chart(symptom_counts)
-            
+
             print("ツイート文生成中...")
             tweet_text = self.generate_pollen_tweet(symptom_counts)
-            
+
             print("ツイート投稿中...")
             success = self.post_tweet_with_image(tweet_text, chart_image)
-            
+
             if success:
                 print("花粉症分析・投稿完了!")
             else:
                 print("投稿に失敗しました")
-                
+
         except Exception as e:
             print(f"エラーが発生しました: {str(e)}")
 
