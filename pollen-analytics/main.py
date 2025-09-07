@@ -157,7 +157,7 @@ class PollenAnalyzer:
         
         return img_buffer
     
-def generate_pollen_tweet(self, symptom_counts):
+    def generate_pollen_tweet(self, symptom_counts):
         """花粉症ツイート文生成"""
         sorted_symptoms = sorted(symptom_counts.items(), key=lambda x: x[1], reverse=True)
         today = datetime.now().strftime('%m/%d')
